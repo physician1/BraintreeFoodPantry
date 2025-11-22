@@ -124,7 +124,7 @@
         <div class="container">
             <div class="row g-5 align-items-center">
                 <div class="col-lg-6 wow fadeIn" data-wow-delay="0.1s">
-                    <div class="about-img position-relative overflow-hidden p-5 pe-0">
+                    <div class="about-img position-relative overflow-hidden p-2 pe-0">
                         <img class="img-fluid w-100"
                             src="{{ url_for('static', filename='img/about2.JPG') }}"
                             alt="About the Braintree Community Food Pantry">
@@ -198,21 +198,47 @@
         </div>
 
         <div class="owl-carousel news-carousel wow fadeInUp" data-wow-delay="0.1s">
-
                 {% for item in news_items %}
-                <div class="news-card bg-white">
-                    <img class="img-fluid" src="/{{ item.image_path }}" alt="">
-                    <div class="bg-light p-4">
-                        <h5 class="mb-3">{{ item.title }}</h5>
-                        <p class="text-muted small mb-2">
-                            {{ item.description }}
-                        </p>
-                        <small class="text-muted">
-                            <i class="fa fa-calendar text-primary me-2"></i>{{ item.date }}
-                        </small>
-                    </div>
-                </div>
-                {% endfor %}
+
+{% set preview = item.description[:100].rstrip() %}
+{% set rest = item.description[100:].lstrip() %}
+
+<div class="news-card bg-white">
+
+    <img class="img-fluid" src="/{{ item.image_path }}" alt="{{ item.title }}">
+
+    <div class="bg-light p-4 content-area">
+
+        <h5 class="mb-3">{{ item.title }}</h5>
+
+        <!-- WHOLE TEXT AS ONE LINE -->
+        <span class="text-muted small">
+            {{ preview }}{% if rest|length > 0 %}<span class="collapse" id="more{{ loop.index }}">{{ rest }}</span>{% endif %}
+        </span>
+
+        {% if rest|length > 0 %}
+        <!-- ARROW TOGGLE -->
+        <div>
+            <span class="news-toggle-btn"
+                data-bs-toggle="collapse"
+                data-bs-target="#more{{ loop.index }}"
+                onclick="this.classList.toggle('open')">
+                <i class="bi bi-chevron-down arrow-icon"></i>
+            </span>
+
+        </div>
+        {% endif %}
+
+        <small class="text-muted d-flex align-items-center mt-auto pt-3">
+            <i class="fa fa-calendar text-primary me-2"></i>{{ item.date }}
+        </small>
+
+    </div>
+</div>
+
+{% endfor %}
+
+
 
 
             <!-- ADD MORE ITEMS HERE THE SAME WAY -->
@@ -323,5 +349,11 @@
 
     <!-- Template Javascript -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+function toggleArrow(el) {
+    el.classList.toggle("open");
+}
+</script>
+
 </body>
 </html>
