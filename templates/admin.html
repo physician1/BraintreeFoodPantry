@@ -99,6 +99,16 @@
                 <i class="bi bi-people"></i> Testimonials
               </button>
             </li>
+            <li class="nav-item">
+              <button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-news">
+                <i class="bi bi-heart"></i> News
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-gallery">
+                <i class="bi bi-images"></i> Gallery
+              </button>
+           </li>
           </ul>
           <hr class="border-secondary my-3" />
           <button id="btnLogout" class="btn btn-outline-danger btn-sm w-100">
@@ -289,6 +299,75 @@
               <div id="testimonialsPreview" class="row g-3 row-cols-1 row-cols-md-2 row-cols-xl-3"></div>
             </div>
           </div>
+          <!-- Gallery -->
+          <div class="tab-pane fade" id="pane-gallery">
+            <div class="card-ghost p-4">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <h5 class="mb-0"><i class="bi bi-images me-2 text-info"></i>Gallery Images</h5>
+
+                <button class="btn btn-sm btn-outline-success" id="btnAddGallery">
+                  <i class="bi bi-upload me-1"></i>Upload Image
+                </button>
+              </div>
+
+              <div class="table-responsive" style="max-height: 500px;">
+                <table class="table table-sm align-middle table-hover mb-0">
+                  <thead>
+                    <tr>
+                      <th style="width:120px;">Preview</th>
+                      <th>Filename</th>
+                      <th style="width:160px;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="galleryBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+         <!-- News Manager -->
+        <div class="tab-pane fade" id="pane-news">
+          <div class="card-ghost p-4">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+              <h5 class="mb-0"><i class="bi bi-newspaper text-info me-2"></i>News & Updates</h5>
+
+              <div class="d-flex align-items-center gap-2">
+                <div class="input-group input-group-sm" style="max-width: 320px;">
+                  <span class="input-group-text"><i class="bi bi-search"></i></span>
+                  <input id="newsSearch" type="search" class="form-control" placeholder="Search news title or description…">
+                </div>
+
+                <button class="btn btn-sm btn-outline-success" id="btnAddNews">
+                  <i class="bi bi-plus-circle me-1"></i>Add News
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive" style="max-height: 420px;">
+              <table class="table table-sm align-middle table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th style="width:72px;">Image</th>
+                    <th>Title</th>
+                    <th>Description</th>
+                    <th style="width:140px;">Date</th>
+                    <th style="width:160px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="newsBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Preview -->
+          <div class="card-ghost p-4 mt-3">
+            <h3 class="h6 mb-2"><i class="bi bi-eye me-2"></i>Homepage Carousel Preview</h3>
+            <div id="newsPreview" class="row g-3 row-cols-1 row-cols-md-2 row-cols-xl-3"></div>
+          </div>
+        </div>
+
+
+
+
         </div>
       </main>
     </div>
@@ -337,6 +416,8 @@
       </div>
     </div>
   </div>
+ 
+
 <!-- View Message Modal -->
 <div class="modal fade" id="messageModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -744,7 +825,7 @@ async function renderMessages(filter='') {
           const r = await fetch('{{ url_for("testimonials") }}?id=' + encodeURIComponent(id), { method: 'DELETE' });
           if (!r.ok) throw new Error();
           showToast('Testimonial deleted.');
-          await renderTestimonials($('#t﻿﻿estiSearch').value);
+          await renderTestimonials($('#testiSearch').value);
         } catch {
           showToast('Failed to delete testimonial.');
         }
@@ -782,16 +863,51 @@ async function renderMessages(filter='') {
     $('#btnLogout').addEventListener('click', () => {
       window.location.href = '{{ url_for("logout") }}';
     });
-
+    
     // ---------- Init ----------
     (async function init() {
       await Promise.all([
         renderDonations(),
         renderTestimonials(),
-        renderMessages()
-      ]);
+        renderMessages(),
+          ]);
       refreshStats();
     })();
+
+
+    // ---------- Gallery Manager ----------
+async function renderGallery() {
+  const tbody = $('#galleryBody');
+  tbody.innerHTML = '';
+
+  try {
+    const r = await fetch('/api/gallery');
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+
+    data.forEach(img => {
+      const row = document.createElement('tr');
+
+      row.innerHTML = `
+        <td>
+          <img src="${img.url}" class="img-fluid rounded" style="max-width:100px;">
+        </td>
+        <td>${img.filename}</td>
+        <td class="text-nowrap">
+          <button class="btn btn-sm btn-outline-danger" data-del-gallery="${img.id}">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      `;
+
+      tbody.appendChild(row);
+    });
+
+  } catch {
+    showToast("Failed to load gallery.");
+  }
+}
+
   </script>
 
   <!-- View Message Modal -->
@@ -816,6 +932,300 @@ async function renderMessages(filter='') {
     </div>
   </div>
 </div>
+<!-- Gallery Upload Modal -->
+<div class="modal fade" id="galleryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Upload Image</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <div class="mb-3 text-center">
+          <div id="galleryPreviewContainer" class="d-flex flex-wrap gap-2 justify-content-center"></div>
+          <input id="galleryFile" type="file" accept="image/*" class="form-control" multiple>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button id="saveGallery" class="btn btn-primary">
+          <i class="bi bi-check2-circle me-1"></i>Upload
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal fade" id="newsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="newsModalTitle">
+          <i class="bi bi-plus-circle me-2"></i>Add News Item
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <form id="newsForm" class="needs-validation" novalidate>
+          <input type="hidden" id="newsId">
+
+          <div class="mb-3 text-center">
+            <img id="newsImagePreview" class="testi-photo d-none mb-2" />
+            <div class="input-group">
+              <input id="newsImage" type="file" accept="image/*" class="form-control">
+              <button class="btn btn-outline-secondary" type="button" id="btnClearNewsImage">
+                <i class="bi bi-x-circle"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label">Title</label>
+            <input id="newsTitle" type="text" class="form-control" required>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label">Description</label>
+            <textarea id="newsDescription" class="form-control" rows="3" required></textarea>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label">Date</label>
+            <input id="newsDate" type="date" class="form-control" required>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button id="saveNews" class="btn btn-success">
+          <i class="bi bi-check2-circle me-1"></i>Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- OPEN UPLOAD MODAL ---
+$('#btnAddGallery').addEventListener('click', () => {
+  $('#galleryFile').value = '';
+  $('#galleryPreviewContainer').innerHTML = '';
+
+
+  const modal = new bootstrap.Modal('#galleryModal');
+  modal.show();
+});
+
+// Preview image
+$('#galleryFile').addEventListener('change', () => {
+  const files = $('#galleryFile').files;
+  const container = $('#galleryPreviewContainer');
+
+  container.innerHTML = ''; // Clear old previews
+
+  if (!files || files.length === 0) return;
+
+  [...files].forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.className = "img-fluid rounded";
+      img.style.maxHeight = "120px";
+      img.style.margin = "5px";
+      container.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+});
+
+
+// Upload image
+// Upload multiple images
+$('#saveGallery').addEventListener('click', async () => {
+  const files = $('#galleryFile').files;
+
+  if (!files || files.length === 0) {
+    showToast("Please choose images");
+    return;
+  }
+
+  for (let file of files) {
+    const fd = new FormData();
+    fd.append("image", file);
+
+    try {
+      const r = await fetch('/api/gallery', {
+        method: 'POST',
+        body: fd
+      });
+
+      if (!r.ok) throw new Error();
+
+    } catch {
+      showToast(`Failed to upload ${file.name}`);
+    }
+  }
+
+  bootstrap.Modal.getInstance($('#galleryModal')).hide();
+  showToast("Images uploaded!");
+
+  await renderGallery();
+});
+
+// Delete image
+document.addEventListener('click', async (e) => {
+  const delBtn = e.target.closest('[data-del-gallery]');
+  if (!delBtn) return;
+
+  if (!confirm("Delete this image?")) return;
+
+  const id = delBtn.getAttribute('data-del-gallery');
+
+  try {
+    const r = await fetch(`/api/gallery?id=${id}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error();
+    showToast("Image deleted.");
+    await renderGallery();
+  } catch {
+    showToast("Failed to delete.");
+  }
+});
+ renderGallery()
+
+
+
+
+
+ // ========== NEWS CRUD ==========
+
+async function fetchNews() {
+  const r = await fetch('/api/news');
+  if (!r.ok) throw new Error('Failed to fetch news');
+  return await r.json();
+}
+
+async function renderNews(filter='') {
+  const tbody = $('#newsBody');
+  const preview = $('#newsPreview');
+  tbody.innerHTML = ''; 
+  preview.innerHTML = '';
+
+  const data = await fetchNews();
+  const q = filter.toLowerCase();
+
+  const filtered = data.filter(n =>
+    (n.title + n.description).toLowerCase().includes(q)
+  );
+
+  // Table
+  filtered.forEach(n => {
+    const img = n.image_path ? `/${n.image_path}` : '';
+    tbody.innerHTML += `
+      <tr>
+        <td>${img ? `<img src="${img}" class="avatar-sm">` : "—"}</td>
+        <td>${n.title}</td>
+        <td class="text-truncate" style="max-width:250px;">${n.description}</td>
+        <td>${n.date}</td>
+        <td class="text-nowrap">
+          <button class="btn btn-sm btn-outline-info me-1" data-edit-news="${n.id}">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-danger" data-del-news="${n.id}">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      </tr>`;
+  });
+
+  // Preview cards
+  filtered.forEach(n => {
+    const img = n.image_path ? `/${n.image_path}` : '';
+    preview.innerHTML += `
+      <div class="col">
+        <div class="testi-card text-center p-3 h-100">
+          ${img ? `<img src="${img}" class="testi-photo mb-3">` : ""}
+          <h6>${n.title}</h6>
+          <p class="text-secondary small">${n.description}</p>
+          <small>${n.date}</small>
+        </div>
+      </div>`;
+  });
+}
+
+$('#newsSearch').addEventListener('input', e => renderNews(e.target.value));
+
+// Add News
+$('#btnAddNews').addEventListener('click', () => {
+  $('#newsForm').reset();
+  $('#newsId').value = '';
+  $('#newsImagePreview').classList.add('d-none');
+  new bootstrap.Modal('#newsModal').show();
+});
+
+// Save News
+$('#saveNews').addEventListener('click', async () => {
+  const id = $('#newsId').value;
+  const fd = new FormData();
+
+  fd.append('title', $('#newsTitle').value);
+  fd.append('description', $('#newsDescription').value);
+  fd.append('date', $('#newsDate').value);
+
+  if ($('#newsImage').files[0]) {
+    fd.append('image', $('#newsImage').files[0]);
+  }
+
+  if (id) {
+    await fetch('/api/news?id=' + id, { method: 'DELETE' });
+  }
+
+  await fetch('/api/news', { method: 'POST', body: fd });
+  bootstrap.Modal.getInstance($('#newsModal')).hide();
+  renderNews();
+  showToast("News saved");
+});
+
+// Edit/Delete
+document.addEventListener('click', async e => {
+  const del = e.target.closest('[data-del-news]');
+  const edit = e.target.closest('[data-edit-news]');
+
+  if (del) {
+    const id = del.getAttribute('data-del-news');
+    await fetch('/api/news?id=' + id, { method: 'DELETE' });
+    renderNews();
+    showToast("News deleted");
+  }
+
+  if (edit) {
+    const id = edit.getAttribute('data-edit-news');
+    const news = await fetchNews();
+    const n = news.find(x => x.id == id);
+
+    $('#newsId').value = n.id;
+    $('#newsTitle').value = n.title;
+    $('#newsDescription').value = n.description;
+    $('#newsDate').value = n.date;
+
+    if (n.image_path) {
+      $('#newsImagePreview').src = '/' + n.image_path;
+      $('#newsImagePreview').classList.remove('d-none');
+    }
+
+    new bootstrap.Modal('#newsModal').show();
+  }
+});
+
+// Load news when page starts
+renderNews();
+
+</script>
 
 </body>
 </html>

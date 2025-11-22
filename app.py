@@ -59,6 +59,18 @@ class User(db.Model):
     username = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
 
+class GalleryImage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255))
+    upload_date = db.Column(db.String(50))
+    
+class News(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200))
+    description = db.Column(db.Text)
+    image_path = db.Column(db.String(255))
+    date = db.Column(db.String(50))
+
 # Create DB if not exists
 with app.app_context():
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -69,7 +81,8 @@ with app.app_context():
 @app.route('/')
 def index():
     content = SiteContent.query.first()
-    testimonials = Testimonial.query.order_by(Testimonial.id.desc()).all()  # ✅ newest first
+    testimonials = Testimonial.query.order_by(Testimonial.id.desc()).all()
+    news_items = News.query.order_by(News.id.desc()).all()
 
     if not content:
         content = SiteContent(
@@ -85,8 +98,19 @@ def index():
         db.session.add(content)
         db.session.commit()
 
-    return render_template('index.html', content=content, testimonials=testimonials)
+    return render_template(
+        'index.html',
+        content=content,
+        testimonials=testimonials,
+        news_items=news_items
+    )
 
+
+
+@app.route('/gallery')
+def gallery():
+    images = GalleryImage.query.order_by(GalleryImage.id.desc()).all()
+    return render_template('gallery.html', images=images)
 
 
 
@@ -148,6 +172,56 @@ def modify_donations():
         return jsonify({'message':'Donation deleted'})
 
 
+@app.route('/api/gallery', methods=['GET', 'POST', 'DELETE'])
+def api_gallery():
+    # GET – return all images
+    if request.method == 'GET':
+        images = [
+            {
+                "id": g.id,
+                "filename": g.filename,
+                "url": url_for('static', filename='uploads/' + g.filename)
+            }
+            for g in GalleryImage.query.order_by(GalleryImage.id.desc()).all()
+        ]
+        return jsonify(images)
+
+    # POST – upload image
+    if request.method == 'POST':
+        file = request.files.get('image')
+        if not file:
+            return jsonify({"error": "No file uploaded"}), 400
+
+        filename = file.filename
+        save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(save_path)
+
+        new_img = GalleryImage(
+            filename=filename,
+            upload_date=datetime.now().strftime('%Y-%m-%d %H:%M')
+        )
+        db.session.add(new_img)
+        db.session.commit()
+
+        return jsonify({"message": "Image uploaded", "id": new_img.id}), 201
+
+    # DELETE – remove an image
+    if request.method == 'DELETE':
+        img_id = request.args.get("id")
+        img = GalleryImage.query.get(img_id)
+
+        if not img:
+            return jsonify({"error": "Image not found"}), 404
+
+        # Remove file from filesystem
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], img.filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        db.session.delete(img)
+        db.session.commit()
+
+        return jsonify({"message": "Image deleted"})
 
 
 
@@ -198,6 +272,10 @@ def site_content():
         return jsonify({'message': 'Website content updated successfully'})
 
 from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 
 @app.route('/api/messages', methods=['GET', 'POST', 'DELETE', 'PATCH'])
 def api_messages():
@@ -225,7 +303,47 @@ def api_messages():
         )
         db.session.add(new_msg)
         db.session.commit()
+
+        # ---------- EMAIL NOTIFICATION ----------
+        sender_email = "braintreefoodpantrycontact@gmail.com"
+        app_password = "kuqn rgkv cajd cfbr"
+
+        recipients = [
+            "braintreefoodpantrydirector@gmail.com",   # <-- REQUIRED
+            "YOUR_SECOND_EMAIL@gmail.com"             # <-- optional
+        ]
+
+        email_subject = f"New Contact Form Submission: {new_msg.subject}"
+        email_body = f"""
+    A new message was submitted through the Braintree Food Pantry contact form.
+
+    Name: {new_msg.name}
+    Email: {new_msg.email}
+    Subject: {new_msg.subject}
+
+    Message:
+    {new_msg.message}
+
+    Submitted on: {new_msg.date}
+    """
+
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = sender_email
+            msg['To'] = ", ".join(recipients)
+            msg['Subject'] = email_subject
+            msg.attach(MIMEText(email_body, "plain"))
+
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(sender_email, app_password)
+                server.sendmail(sender_email, recipients, msg.as_string())
+
+        except Exception as e:
+            print("EMAIL SENDING ERROR:", e)
+
+        # ---------- RETURN SUCCESS ----------
         return jsonify({'message': 'Message sent successfully'}), 201
+
 
     if request.method == 'PATCH':
         data = request.get_json()
@@ -292,6 +410,98 @@ def testimonials():
         db.session.delete(t)
         db.session.commit()
         return jsonify({'message': 'Testimonial deleted successfully'})
+
+@app.route('/api/news', methods=['GET', 'POST', 'DELETE'])
+def api_news():
+    if request.method == 'GET':
+        data = [
+            {
+                "id": n.id,
+                "title": n.title,
+                "description": n.description,
+                "image_path": n.image_path,
+                "date": n.date
+            }
+            for n in News.query.order_by(News.id.desc()).all()
+        ]
+        return jsonify(data)
+
+    if request.method == 'POST':
+        title = request.form['title']
+        description = request.form['description']
+        date = request.form['date']
+        file = request.files.get('image')
+
+        img_path = None
+        if file:
+            filename = file.filename
+            upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(upload_path)
+            img_path = f"uploads/{filename}"
+
+        item = News(
+            title=title,
+            description=description,
+            date=date,
+            image_path=img_path
+        )
+        db.session.add(item)
+        db.session.commit()
+        return jsonify({"message": "News item added"}), 201
+
+    if request.method == 'DELETE':
+        nid = request.args.get("id")
+        n = News.query.get(nid)
+        if not n:
+            return jsonify({"error": "Not found"}), 404
+
+        # delete file
+        if n.image_path:
+            path = os.path.join(app.config['UPLOAD_FOLDER'], n.image_path.replace("uploads/",""))
+            if os.path.exists(path):
+                os.remove(path)
+
+        db.session.delete(n)
+        db.session.commit()
+        return jsonify({"message": "News deleted"})
+    
+
+@app.route("/paypal/webhook", methods=["POST"])
+def paypal_webhook():
+    data = request.json
+
+    # Confirm PayPal actually sent the event
+    event_type = data.get("event_type", "")
+
+    # We only save completed donations
+    if event_type == "PAYMENT.CAPTURE.COMPLETED":
+
+        resource = data["resource"]
+        payer = resource.get("payer", {})
+
+        # Extract donor fields
+        first = payer.get("name", {}).get("given_name", "")
+        last = payer.get("name", {}).get("surname", "")
+        donor_name = f"{first} {last}".strip() or "Anonymous"
+
+        email = payer.get("email_address", "")
+        amount = float(resource["amount"]["value"])
+        txn_id = resource.get("id", "no-ref")
+
+        donation = Donation(
+            name=donor_name,
+            amount=amount,
+            method="PayPal",
+            ref=txn_id,
+            notes=email,  # optional
+            date=datetime.now().strftime("%Y-%m-%d %H:%M")
+        )
+
+        db.session.add(donation)
+        db.session.commit()
+
+    # PayPal requires a 200 OK response
+    return jsonify({"status": "ok"}), 200
 
 
 @app.route('/api/donations', methods=['GET'])
